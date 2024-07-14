@@ -2,25 +2,28 @@ from django.shortcuts import render
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt , ensure_csrf_cookie
 import json
+import redis
 
-data_store = [
-    {
-        "name": "John Doe",
-        "email": "johndoe@example.com",
-        "message": "Hello, this is a test message to check the form submission."
-    },
-    {
-        "name": "Jane Smith",
-        "email": "janesmith@example.com",
-        "message": "Hi, I am interested in learning more about your services."
-    },
-    {
-        "name": "Alice Johnson",
-        "email": "alicejohnson@example.com",
-        "message": "Good day, I would like to inquire about your pricing."
-    },
+redis_client = redis.Redis(host='localhost', port=6379, db=0)
+
+# data_store = [
+#     {
+#         "name": "John Doe",
+#         "email": "johndoe@example.com",
+#         "message": "Hello, this is a test message to check the form submission."
+#     },
+#     {
+#         "name": "Jane Smith",
+#         "email": "janesmith@example.com",
+#         "message": "Hi, I am interested in learning more about your services."
+#     },
+#     {
+#         "name": "Alice Johnson",
+#         "email": "alicejohnson@example.com",
+#         "message": "Good day, I would like to inquire about your pricing."
+#     },
     
-]
+# ]
 
 @csrf_exempt
 def store_data(request):
@@ -31,11 +34,11 @@ def store_data(request):
             email=data.get('email')
             message=data.get('message')
             if name and email and message:
-                data_store.append({
-                    "name":name,
+                redis_client.rpush('data_store', json.dumps({
+                    "name": name,
                     "email": email,
                     "message": message
-                })
+                }))
                 return JsonResponse({"status": "success", "message":"data stored successfully"})
             else:
                 return JsonResponse({"status":"fail", "message":"some fields are missing"}, status=400)
@@ -47,6 +50,8 @@ def store_data(request):
 @ensure_csrf_cookie
 def fetch_data(request):
     if request.method == 'GET':
-        return JsonResponse({'status':'success', 'data':data_store})
+        data_store = redis_client.lrange('data_store', 0, -1)
+        data_store = [json.loads(item) for item in data_store]
+        return JsonResponse({'status': 'success', 'data': data_store})
     return JsonResponse({"status":"error", "message":"Invalid request method"}, status=405)  
         
